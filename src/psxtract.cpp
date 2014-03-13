@@ -25,7 +25,7 @@ int extract_startdat(FILE *psar, bool isMultidisc)
 		printf("Found STARTDAT offset: 0x%08x\n", startdat_offset);
 
 		// Read the STARTDAT header.
-		STARTDAT_HEADER *startdat_header = (STARTDAT_HEADER *)malloc(sizeof(STARTDAT_HEADER));
+		STARTDAT_HEADER startdat_header[sizeof(STARTDAT_HEADER)];
 		memset(startdat_header, 0, sizeof(STARTDAT_HEADER));
 
 		// Save the header as well.
@@ -35,13 +35,14 @@ int extract_startdat(FILE *psar, bool isMultidisc)
 
 		// Read the STARTDAT data.
 		int startdat_size = startdat_header->header_size + startdat_header->data_size;
-		unsigned char *startdat_data = (unsigned char *)malloc(startdat_size);   
+		unsigned char *startdat_data = new unsigned char[startdat_size];   
 		fread(startdat_data, 1, startdat_size, psar);
 
 		// Store the STARTDAT.
 		FILE* startdat = fopen("STARTDAT.BIN", "wb");
 		fwrite(startdat_data, startdat_size, 1, startdat);
 		fclose(startdat);
+		delete[] startdat_data;
 
 		printf("Saving STARTDAT as STARTDAT.BIN...\n\n");
 	}
@@ -57,7 +58,7 @@ int decrypt_document(FILE* document)
 	fseek(document, 0, SEEK_SET);
 
 	// Read the DOCUMENT.DAT.
-	unsigned char *document_data = (unsigned char *)malloc(document_size);
+	unsigned char *document_data = new unsigned char[document_size];  
 	fread(document_data, 1, document_size, document);
 
 	printf("Decrypting DOCUMENT.DAT...\n");
@@ -80,6 +81,7 @@ int decrypt_document(FILE* document)
 		if (decrypt_doc(document_data, document_size) < 0)
 		{
 			printf("ERROR: DOCUMENT.DAT decryption failed!\n\n");
+			delete[] document_data;
 			return -1;
 		}
 		else
@@ -92,7 +94,7 @@ int decrypt_document(FILE* document)
 			fclose(dec_document);
 		}
 	}
-
+	delete[] document_data;
 	return 0;
 }
 
@@ -113,7 +115,7 @@ int decrypt_special_data(FILE *psar, int psar_size, int special_data_offset)
 
 		// Read the data.
 		int special_data_size = psar_size - special_data_offset;  // Always the last portion of the DATA.PSAR.
-		unsigned char *special_data = (unsigned char *)malloc(special_data_size);
+		unsigned char *special_data = new unsigned char[special_data_size];
 		fread(special_data, 1, special_data_size, psar);
 
 		printf("Decrypting special data...\n");
@@ -132,9 +134,8 @@ int decrypt_special_data(FILE *psar, int psar_size, int special_data_offset)
 		// Store the decrypted special data.
 		FILE* dec_special_data = fopen("SPECIAL_DATA.BIN", "wb");
 		fwrite(special_data + 0x90, 1, pgd_size, dec_special_data);
-
 		fclose(dec_special_data);
-		free(special_data);
+		delete[] special_data;
 	}
 
 	return 0;
@@ -157,7 +158,7 @@ int decrypt_unknown_data(FILE *psar, int unknown_data_offset, int startdat_offse
 
 		// Read the data.
 		int unknown_data_size = startdat_offset - unknown_data_offset;   // Always located before the STARDAT and after the ISO.
-		unsigned char *unknown_data = (unsigned char *)malloc(unknown_data_size);
+		unsigned char *unknown_data = new unsigned char[unknown_data_size];
 		fread(unknown_data, 1, unknown_data_size, psar);
 
 		printf("Decrypting unknown data...\n");
@@ -176,9 +177,8 @@ int decrypt_unknown_data(FILE *psar, int unknown_data_offset, int startdat_offse
 		// Store the decrypted unknown data.
 		FILE* dec_unknown_data = fopen("UNKNOWN_DATA.BIN", "wb");
 		fwrite(unknown_data + 0x90, 1, pgd_size, dec_unknown_data);
-
 		fclose(dec_unknown_data);
-		free(unknown_data);
+		delete[] unknown_data;
 	}
 
 	return 0;
@@ -216,6 +216,7 @@ int decrypt_iso_header(FILE *psar, int header_offset, int header_size, unsigned 
 	FILE* dec_iso_header = fopen("ISO_HEADER.BIN", "wb");
 	fwrite(iso_header + 0x90, pgd_size, 1, dec_iso_header);
 	fclose(dec_iso_header);
+	delete[] iso_header;
 
 	return 0;
 }
@@ -252,7 +253,7 @@ int decrypt_iso_map(FILE *psar, int map_offset, int map_size, unsigned char *pgd
 	FILE* dec_iso_map = fopen("ISO_MAP.BIN", "wb");
 	fwrite(iso_map + 0x90, pgd_size, 1, dec_iso_map);
 	fclose(dec_iso_map);
-	free(iso_map);
+	delete[] iso_map;
 
 	return 0;
 }
@@ -277,11 +278,11 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 	fseek(iso_table, table_offset, SEEK_SET);
 
 	// Choose the output ISO file name based on the disc number.
-	char *iso_filename = (char *)malloc(0x10);
+	char iso_filename[0x10];
 	if (disc_num > 0)
 		sprintf(iso_filename, "ISO_%d.BIN", disc_num);
 	else
-		iso_filename = "ISO.BIN";
+		sprintf(iso_filename, "ISO.BIN");
 
 	// Open a new file to write the ISO image.
 	FILE* iso = fopen(iso_filename, "wb");
@@ -292,14 +293,14 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 	}
 
 	int iso_base_offset = 0x100000 + base_offset;  // Start of compressed ISO data.
-	ISO_ENTRY *entry = (ISO_ENTRY *)malloc(sizeof(ISO_ENTRY));
+	ISO_ENTRY entry[sizeof(ISO_ENTRY)];
 	memset(entry, 0, sizeof(ISO_ENTRY));
 
 	// Read the first entry.
 	fread(entry, sizeof(ISO_ENTRY), 1, iso_table);
 
 	// Keep reading entries until we reach the end of the table.
-	while (entry->size > 0) 
+	while (entry->size > 0)
 	{
 		// Locate the block offset in the DATA.PSAR.
 		fseek(psar, iso_base_offset + entry->offset, SEEK_SET);
@@ -323,10 +324,7 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 		fseek(iso_table, table_offset, SEEK_SET);
 		fread(entry, sizeof(ISO_ENTRY), 1, iso_table);
 	}
-
-	free(entry);
 	fclose(iso);
-
 	return 0;
 }
 

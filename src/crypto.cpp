@@ -43,13 +43,12 @@
 int decrypt_pgd(unsigned char* pgd_data, int pgd_size, int flag, unsigned char* key)
 {
 	int result;
-	PGD_HEADER *PGD;
+	PGD_HEADER PGD[sizeof(PGD_HEADER)];
 	MAC_KEY mkey;
 	CIPHER_KEY ckey;
 	unsigned char*fkey;
 
 	// Read in the PGD header parameters.
-	PGD = (PGD_HEADER*)malloc(sizeof(PGD_HEADER));
 	memset(PGD, 0, sizeof(PGD_HEADER));
 
 	PGD->buf = pgd_data;
