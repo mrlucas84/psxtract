@@ -29,7 +29,7 @@
  *  http://csrc.nist.gov/publications/fips/fips46-3/fips46-3.pdf
  */
 
-#include "des.h"
+#include "DES.h"
 
 #if !defined(POLARSSL_DES_ALT)
 
