@@ -137,7 +137,7 @@ int decompress(unsigned char *out, unsigned char *in, unsigned int size)
 
 	unsigned char *tmp_sect1, *tmp_sect2, *tmp_sect3;
 	unsigned char *buf_start, *buf_end;
-	unsigned char prev;
+	unsigned char prev = 0;
 
 	unsigned char *start = out;
 	unsigned char *end = (out + size);

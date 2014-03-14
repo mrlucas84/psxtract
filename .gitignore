@@ -13,9 +13,9 @@
 *.a
 
 # Unwanted files and folders
-src/Debug
-src/Release
-bin/*
+Windows/src/Debug
+Windows/src/Release
+Windows/bin/*
 *.opensdf
 *.suo
 *.sdf
