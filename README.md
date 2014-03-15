@@ -33,6 +33,25 @@ please check the following sources:
   https://github.com/tpunix/kirk_engine/blob/master/kirk/amctrl.c (tpunix)
 
 
+Working games
+-------------
+
+The following games have been tested with ePSXe and are known to work. All games were bought from the PSN US store unless another store is indicated.
+
+- Breath of Fire IV
+- Crash Bandicoot
+- Crash Bandicoot 2: Cortex Strikes Back
+- Crash Bandicoot 3: WARPED
+- CTR: Crash Team Racing
+- Final Fantasy VII (German)
+- Final Fantasy IX
+- Metal Gear Solid (German)
+- Metal Slug X
+- Simcity 2000
+
+Note that other PS1 emulators do not seem to be able to play these games.
+
+
 Credits
 -------
 
