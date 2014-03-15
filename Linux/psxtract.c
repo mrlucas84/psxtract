@@ -625,15 +625,15 @@ int main(int argc, char **argv)
 	printf("Unpacking PBP %s...\n", argv[1]);
 
 	// Setup a new directory to output the unpacked contents.
-	_mkdir("PBP");
-	_chdir("PBP");
+	mkdir("PBP");
+	chdir("PBP");
 
 	// Unpack the EBOOT.PBP file.
 	if (unpack_pbp(input))
 	{
 		printf("ERROR: Failed to unpack %s!", argv[1]);
-		_chdir("..");
-		_rmdir("PBP");
+		chdir("..");
+		rmdir("PBP");
 		return -1;
 	}
 	else
@@ -690,7 +690,7 @@ int main(int argc, char **argv)
 		decrypt_single_disc(psar, psar_size, startdat_offset, pgd_key);
 
 	// Change the directory back.
-	_chdir("..");
+	chdir("..");
 
 	fclose(psar);
 	fclose(input);
