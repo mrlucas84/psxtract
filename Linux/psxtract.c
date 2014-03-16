@@ -625,7 +625,11 @@ int main(int argc, char **argv)
 	printf("Unpacking PBP %s...\n", argv[1]);
 
 	// Setup a new directory to output the unpacked contents.
-	mkdir("PBP");
+	#ifdef __linux__
+		mkdir("PBP", 0777);
+	#else
+		mkdir("PBP");
+	#endif
 	chdir("PBP");
 
 	// Unpack the EBOOT.PBP file.

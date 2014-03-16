@@ -4,6 +4,7 @@
 
 #include <unistd.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 
 #include "lz.h"
 #include "crypto.h"
