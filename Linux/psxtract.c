@@ -328,7 +328,155 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 	return 0;
 }
 
-int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key)
+int patch_iso(char *iso_file_name, char *cue_file_name, unsigned char *iso_disc_name)
+{
+	// Re-open in read update mode (just to be safe).
+	FILE* iso_file = fopen(iso_file_name, "r+b");
+	if (iso_file == NULL)
+	{
+		printf("ERROR: No ISO image found!\n");
+		return -1;
+	}
+	
+	// Select the right region license file (NTSC-U, NTSC-J or PAL).
+	char* license_file_path = NULL;
+	if ((!strncmp((const char *)iso_disc_name, "_SLUS_", 6)) ||
+		(!strncmp((const char *)iso_disc_name, "_SCUS_", 6)))
+		license_file_path = "../External/LICENSEA.DAT";
+	else if ((!strncmp((const char *)iso_disc_name, "_SLES_", 6)) ||
+		(!strncmp((const char *)iso_disc_name, "_SCES_", 6)))
+		license_file_path = "../External/LICENSEE.DAT";
+	else if ((!strncmp((const char *)iso_disc_name, "_SLPS_", 6)) ||
+		(!strncmp((const char *)iso_disc_name, "_SCPS_", 6)) ||
+		(!strncmp((const char *)iso_disc_name, "_SLPA_", 6)) ||
+		(!strncmp((const char *)iso_disc_name, "_SLPM_", 6)))
+		license_file_path = "../External/LICENSEJ.DAT";
+	else
+	{
+		printf("ERROR: Unknown license for disc %s\n", iso_disc_name);
+		return -1;
+	}
+	
+	// Open the license file.
+	FILE* license_file = fopen(license_file_path, "rb");
+	if (license_file == NULL)
+	{
+		printf("ERROR: No license file found!\n");
+		return -1;
+	}
+	
+	// Overwrite the first raw sector of the ISO with the license data.
+	unsigned char license_data[0x9300];
+	memset(license_data, 0, 0x9300);
+			
+	fread(license_data, 0x9300, 1, license_file);
+	fseek(iso_file, 0, SEEK_SET);
+	fwrite(license_data, 0x9300, 1, iso_file);
+
+	// Get the total number of raw blocks in the ISO image.
+	int raw_blocks_num = 0;
+	int raw_blocks_count = 0;
+
+	fseek(iso_file, 0, SEEK_END);
+	raw_blocks_num = ftell(iso_file) / 0x930;
+	fseek(iso_file, 0, SEEK_SET);
+
+	// Skip the first 16 blocks (license data).
+	raw_blocks_num -= 16;
+	raw_blocks_count = 0x16;			
+	
+	// Build the structural information for each sector (CD-ROM XA).
+	unsigned char raw_sector_header[0x10];		   // Composed by sync pattern (12 bytes), address (3 bytes) and mode (1 byte);
+	unsigned char raw_sector_sub_header[0x8];      // Specific sub header.
+	unsigned char raw_sector_edc[0x4];			   // Error detection.
+	unsigned char raw_sector_ecc[0x114];           // Error correction.
+
+	memset(raw_sector_header, 0xFF, 0x10);
+	raw_sector_header[0] = 0;
+	raw_sector_header[0xB] = 0;
+	raw_sector_header[0xC] = 0;
+	raw_sector_header[0xD] = 2;
+	raw_sector_header[0xE] = 0x15;
+	raw_sector_header[0xF] = 2;
+	memset(raw_sector_sub_header, 0, 0x8);
+	memset(raw_sector_edc, 0, 0x4);
+	memset(raw_sector_ecc, 0, 0x114);
+
+	// Generate new EDC/ECC tables.
+	generate_edc_ecc_tables();
+
+	// Store each block for EDC/ECC calculations.
+	unsigned char raw_block[0x808];
+	memset(raw_block, 0, 0x808);
+	
+	// Write the sector header for each block.
+	int i;
+	for (i = 0; i < raw_blocks_num; i++)
+	{
+		// Calculate the sector address (minutes:seconds:frames).
+		if (raw_sector_header[0xE] >= 0x74) 
+		{
+			raw_sector_header[0xD]++;
+			if (((raw_sector_header[0xD]) & 0xA) == 0xA) raw_sector_header[0xD] += 6;
+			raw_sector_header[0xE] = 0;
+			
+			if (raw_sector_header[0xD] >= 0x60)
+			{
+				raw_sector_header[0xC]++;
+				if (((raw_sector_header[0xC]) & 0xA) == 0xA) raw_sector_header[0xC] += 6;
+				raw_sector_header[0xD] = 0;
+			} 
+		}
+		else 
+		{
+			raw_sector_header[0xE]++;
+			if (((raw_sector_header[0xE]) & 0xA) == 0xA) raw_sector_header[0xE] += 6;
+		}
+
+		// Store the calculated header.
+		fseek(iso_file, 0x9300 + 0x930 * i, SEEK_SET);
+		fwrite(raw_sector_header, 0x10, 1, iso_file);
+
+		// Generate new copy protection data.
+		fseek(iso_file, 0x9300 + 0x10 + 0x930 * i, SEEK_SET);
+		fread(raw_block, 0x808, 1, iso_file);
+		calculate_edc(raw_block, 0x808, raw_sector_edc);
+		calculate_ecc(raw_block, raw_sector_ecc);
+		
+		// Forge the copy protection data.		
+		fseek(iso_file, 0x9300 + 0x18 + 0x800 + 0x930 * i, SEEK_SET);
+		fwrite(raw_sector_edc, 0x4, 1, iso_file);
+		fwrite(raw_sector_ecc, 0x114, 1, iso_file);
+
+		// Reset data.
+		memset(raw_block, 0, 0x808);
+		memset(raw_sector_edc, 0, 0x4);
+		memset(raw_sector_ecc, 0, 0x114);
+	}
+
+	// Generate a new CUE file.
+	FILE* cue_file = fopen(cue_file_name, "wb");
+	if (cue_file == NULL)
+	{
+		printf("ERROR: Can't write CUE file!\n");
+		return -1;
+	}
+
+	printf("Generating CUE file...\n");
+
+	char cue[0x100];
+	memset(cue, 0, 0x100);
+	sprintf(cue, "FILE \"%s\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n", iso_file_name);
+	fputs(cue, cue_file);
+
+	fclose(cue_file);
+	fclose(license_file);
+	fclose(iso_file);
+
+	return 0;
+}
+
+int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key, bool patch)
 {
 	// Decrypt the ISO header and get the block table.
 	// NOTE: In a single disc, the ISO header is located at offset 0x400 and has a length of 0xB6600.
@@ -343,19 +491,19 @@ int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned
 		return -1;
 	}
 
-	// Save the ISO disc name and title.
-	char iso_title[0x20];
-	char iso_disc_name[0x20];
-	memset(iso_title, 0, 0x20);
-	memset(iso_disc_name, 0, 0x20);
+	// Save the ISO disc name and title (UTF-8).
+	unsigned char iso_title[0x80];
+	unsigned char iso_disc_name[0x10];
+	memset(iso_title, 0, 0x80);
+	memset(iso_disc_name, 0, 0x10);
 
 	fseek(iso_table, 0, SEEK_SET);
-	fread(iso_disc_name, 1, 0xC, iso_table);
+	fread(iso_disc_name, 1, 0x10, iso_table);
 	fseek(iso_table, 0xE2C, SEEK_SET);
-	fread(iso_title, 1, 0xC, iso_table);
+	fread(iso_title, 1, 0x80, iso_table);
 
-	printf("ISO disc: %s\n", iso_disc_name);
-	printf("ISO title: %s\n\n", iso_title);
+	printf("ISO disc: %s\n", strip_utf8(iso_disc_name, 0x10));
+	printf("ISO title: %s\n\n", strip_utf8(iso_title, 0x80));
 
 	// Seek inside the ISO table to find the special data offset.
 	int special_data_offset;
@@ -379,15 +527,25 @@ int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned
 	// Build the ISO image.
 	printf("Building the final ISO image...\n");
 	if (build_iso(psar, iso_table, 0, 0))
-		printf("ERROR: Failed to reconstruct the ISO image!\n");
+		printf("ERROR: Failed to reconstruct the ISO image!\n\n");
 	else
-		printf("ISO image successfully reconstructed! Saving as ISO.BIN...\n");
+		printf("ISO image successfully reconstructed! Saving as ISO.BIN...\n\n");
+
+	// Patch the ISO binary image if required.
+	if (patch)
+	{
+		printf("Patching the final ISO image...\n");
+		if (patch_iso("ISO.BIN", "ISO.CUE", iso_disc_name))
+			printf("ERROR: Failed to patch the ISO image!\n");
+		else
+			printf("ISO image successfully patched!\n");
+	}
 
 	fclose(iso_table);
 	return 0;
 }
 
-int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key)
+int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key, bool patch)
 {
 	// Decrypt the multidisc ISO map header and get the disc map.
 	// NOTE: The ISO map header is located at offset 0x200 and 
@@ -419,19 +577,19 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 	fread(&disc4_offset, sizeof(disc4_offset), 1, iso_map);
 	fread(&disc5_offset, sizeof(disc5_offset), 1, iso_map);
 
-	// Get the disc collection ID and title.
-	char iso_title[0x20];
-	char iso_disc_name[0x20];
-	memset(iso_title, 0, 0x20);
-	memset(iso_disc_name, 0, 0x20);
+	// Get the disc collection ID and title (UTF-8).
+	unsigned char iso_title[0x80];
+	unsigned char iso_disc_name[0x10];
+	memset(iso_title, 0, 0x80);
+	memset(iso_disc_name, 0, 0x10);
 
 	fseek(iso_map, 0x64, SEEK_SET);
-	fread(iso_disc_name, 1, 0x20, iso_map);
+	fread(iso_disc_name, 1, 0x10, iso_map);
 	fseek(iso_map, 0x10C, SEEK_SET);
-	fread(iso_title, 1, 0x20, iso_map);
+	fread(iso_title, 1, 0x80, iso_map);
 
-	printf("ISO disc: %s\n", iso_disc_name);
-	printf("ISO title: %s\n\n", iso_title);
+	printf("ISO disc: %s\n", strip_utf8(iso_disc_name, 0x10));
+	printf("ISO title: %s\n\n", strip_utf8(iso_title, 0x80));
 
 	// Seek inside the ISO map to find the special data offset.
 	int special_data_offset;
@@ -466,6 +624,16 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_1.BIN...\n\n");
 
+		// Patch the ISO license sector if required.
+		if (patch)
+		{
+			printf("Patching the ISO image number 1...\n");
+			if (patch_iso("ISO_1.BIN", "ISO_1.CUE", iso_disc_name))
+				printf("ERROR: Failed to patch ISO image number 1!\n\n");
+			else
+				printf("ISO image number 1 successfully patched!\n\n");
+		}
+
 		disc_count++;
 		fclose(iso_table);
 	}
@@ -490,6 +658,16 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("ERROR: Failed to reconstruct the ISO image number 2!\n\n");
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_2.BIN...\n\n");
+
+		// Patch the ISO license sector if required.
+		if (patch)
+		{
+			printf("Patching the ISO image number 2...\n");
+			if (patch_iso("ISO_2.BIN", "ISO_2.CUE", iso_disc_name))
+				printf("ERROR: Failed to patch ISO image number 2!\n\n");
+			else
+				printf("ISO image number 2 successfully patched!\n\n");
+		}
 
 		disc_count++;
 		fclose(iso_table);
@@ -516,6 +694,16 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_3.BIN...\n\n");
 
+		// Patch the ISO license sector if required.
+		if (patch)
+		{
+			printf("Patching the ISO image number 3...\n");
+			if (patch_iso("ISO_3.BIN", "ISO_3.CUE", iso_disc_name))
+				printf("ERROR: Failed to patch ISO image number 3!\n\n");
+			else
+				printf("ISO image number 3 successfully patched!\n\n");
+		}
+
 		disc_count++;
 		fclose(iso_table);
 	}
@@ -540,6 +728,16 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("ERROR: Failed to reconstruct the ISO image number 4!\n\n");
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_4.BIN...\n\n");
+
+		// Patch the ISO license sector if required.
+		if (patch)
+		{
+			printf("Patching the ISO image number 4...\n");
+			if (patch_iso("ISO_4.BIN", "ISO_4.CUE", iso_disc_name))
+				printf("ERROR: Failed to patch ISO image number 4!\n\n");
+			else
+				printf("ISO image number 4 successfully patched!\n\n");
+		}
 
 		disc_count++;
 		fclose(iso_table);
@@ -566,6 +764,16 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_5.BIN...\n\n");
 
+		// Patch the ISO license sector if required.
+		if (patch)
+		{
+			printf("Patching the ISO image number 5...\n");
+			if (patch_iso("ISO_5.BIN", "ISO_5.CUE", iso_disc_name))
+				printf("ERROR: Failed to patch ISO image number 5!\n\n");
+			else
+				printf("ISO image number 5 successfully patched!\n\n");
+		}
+
 		disc_count++;
 		fclose(iso_table);
 	}
@@ -577,20 +785,32 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 
 int main(int argc, char **argv)
 {
-	if ((argc <= 1) || (argc > 4))
+	if ((argc <= 1) || (argc > 5))
 	{
 		printf("*****************************************************\n");
 		printf("psxtract - Convert your PSOne Classics to ISO format.\n");
 		printf("         - Written by Hykem (C).\n");
 		printf("*****************************************************\n\n");
-		printf("Usage: psxtract <EBOOT.PBP> <DOCUMENT.DAT> <KEYS.BIN>\n");
+		printf("Usage: psxtract [-p] <EBOOT.PBP> <DOCUMENT.DAT> <KEYS.BIN>\n");
+		printf("[-p] - Patch the final ISO image (PSOne original BIN/CUE format).\n");
 		printf("<EBOOT.PBP> - Your PSOne Classic main PBP.\n");
 		printf("<DOCUMENT.DAT> - Game manual file (optional).\n");
 		printf("<KEYS.BIN> - Key file (optional).\n");
 		return 0;
 	}
 
-	FILE* input = fopen(argv[1], "rb");
+	// Keep track of the each argument's offset.
+	int arg_offset = 0;
+
+	// Check if the final ISO images will have license patching.
+	bool patch = false;
+	if (!strcmp(argv[1], "-p"))
+	{
+		patch = true;
+		arg_offset++;
+	}
+
+	FILE* input = fopen(argv[arg_offset + 1], "rb");
 
 	// Start KIRK.
 	kirk_init();
@@ -599,9 +819,9 @@ int main(int argc, char **argv)
 	unsigned char pgd_key[0x10] = {};
 
 	// If a DOCUMENT.DAT was supplied, try to decrypt it.
-	if (argc >= 3)
+	if ((argc - arg_offset) >= 3)
 	{
-		FILE* document = fopen(argv[2], "rb");
+		FILE* document = fopen(argv[arg_offset + 2], "rb");
 		if (document != NULL)
 			decrypt_document(document);
 		fclose(document);
@@ -609,9 +829,9 @@ int main(int argc, char **argv)
 
 	// Use a supplied key when available.
 	// NOTE: KEYS.BIN is not really needed since we can generate a key from the PGD 0x70 MAC hash.
-	if (argc == 4)
+	if ((argc - arg_offset) >= 4)
 	{
-		FILE* keys = fopen(argv[2], "rb");
+		FILE* keys = fopen(argv[arg_offset + 3], "rb");
 		fread(pgd_key, sizeof(pgd_key), 1, keys);
 		fclose(keys);
 
@@ -622,7 +842,7 @@ int main(int argc, char **argv)
 		printf("\n\n");
 	}
 
-	printf("Unpacking PBP %s...\n", argv[1]);
+	printf("Unpacking PBP %s...\n", argv[arg_offset + 1]);
 
 	// Setup a new directory to output the unpacked contents.
 	#ifdef __linux__
@@ -635,13 +855,13 @@ int main(int argc, char **argv)
 	// Unpack the EBOOT.PBP file.
 	if (unpack_pbp(input))
 	{
-		printf("ERROR: Failed to unpack %s!", argv[1]);
+		printf("ERROR: Failed to unpack %s!", argv[arg_offset + 1]);
 		chdir("..");
 		rmdir("PBP");
 		return -1;
 	}
 	else
-		printf("Successfully unpacked %s!\n\n", argv[1]);
+		printf("Successfully unpacked %s!\n\n", argv[arg_offset + 1]);
 
 	// Locate DATA.PSAR.
 	FILE* psar = fopen("DATA.PSAR", "rb");
@@ -689,9 +909,9 @@ int main(int argc, char **argv)
 
 	// Decrypt the disc(s).
 	if (isMultidisc)
-		decrypt_multi_disc(psar, psar_size, startdat_offset, pgd_key);
+		decrypt_multi_disc(psar, psar_size, startdat_offset, pgd_key, patch);
 	else
-		decrypt_single_disc(psar, psar_size, startdat_offset, pgd_key);
+		decrypt_single_disc(psar, psar_size, startdat_offset, pgd_key, patch);
 
 	// Change the directory back.
 	chdir("..");
