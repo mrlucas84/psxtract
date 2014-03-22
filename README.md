@@ -33,8 +33,8 @@ please check the following sources:
   https://github.com/tpunix/kirk_engine/blob/master/kirk/amctrl.c (tpunix)
 
 
-Working games
--------------
+Working games and compatibility
+-------------------------------
 
 The following games have been tested with ePSXe and are known to work. All games were bought from the PSN US store unless another store is indicated.
 
@@ -45,11 +45,16 @@ The following games have been tested with ePSXe and are known to work. All games
 - CTR: Crash Team Racing
 - Final Fantasy VII (German)
 - Final Fantasy IX
+- Grandia
+- Disney's Hercules
 - Metal Gear Solid (German)
 - Metal Slug X
 - Simcity 2000
+- Spyro the Dragon
+- Spyro 2: Ripto's Rage
+- Spyro Year of the Dragon
 
-Note that other PS1 emulators do not seem to be able to play these games.
+Note that other PS1 emulators do not seem to be able to play these games. If a game does not appear on this list, that does not mean it won't work - it means it hasn't been tested yet. All tested games have worked so far. If you experience graphic issues, it will be due to the settings of your emulator. For example, in Final Fantasy IX and Breath of Fire IV, the battle intro animation will not happen or look different from the original game with default ePSXe settings. Make sure to set "Framebuffer effects" to 1 or more in the settings of Pete's graphics plugin. Enabling off-screen drawing is also worth a shot. The games from the PSN store should be full versions. For example, Crash Bandicoot 3 even includes the demo of Spyro the Dragon which is accessible through a cheat code in the main menu, just like the original game.
 
 
 Credits
