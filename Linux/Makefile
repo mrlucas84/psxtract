@@ -11,7 +11,7 @@ TARGET1 = libkirk/libkirk.a
 OBJS1 = libkirk/kirk_engine.o libkirk/AES.o libkirk/DES.o libkirk/SHA1.o libkirk/amctrl.o libkirk/bn.o libkirk/ec.o
 
 TARGET2 = psxtract
-OBJS2 = psxtract.o crypto.o lz.o utils.o
+OBJS2 = psxtract.o cdrom.o crypto.o lz.o utils.o
 
 all: $(TARGET1)
 

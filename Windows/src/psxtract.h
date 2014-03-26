@@ -6,6 +6,7 @@
 
 #include <direct.h>
 
+#include "cdrom.h"
 #include "lz.h"
 #include "crypto.h"
 

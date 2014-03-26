@@ -35,7 +35,7 @@ int extract_startdat(FILE *psar, bool isMultidisc)
 
 		// Read the STARTDAT data.
 		int startdat_size = startdat_header->header_size + startdat_header->data_size;
-		unsigned char *startdat_data = (unsigned char *)malloc(startdat_size);   
+		unsigned char *startdat_data = (unsigned char *) malloc (startdat_size);   
 		fread(startdat_data, 1, startdat_size, psar);
 
 		// Store the STARTDAT.
@@ -58,7 +58,7 @@ int decrypt_document(FILE* document)
 	fseek(document, 0, SEEK_SET);
 
 	// Read the DOCUMENT.DAT.
-	unsigned char *document_data = (unsigned char *)malloc(document_size);  
+	unsigned char *document_data = (unsigned char *) malloc (document_size);  
 	fread(document_data, 1, document_size, document);
 
 	printf("Decrypting DOCUMENT.DAT...\n");
@@ -115,7 +115,7 @@ int decrypt_special_data(FILE *psar, int psar_size, int special_data_offset)
 
 		// Read the data.
 		int special_data_size = psar_size - special_data_offset;  // Always the last portion of the DATA.PSAR.
-		unsigned char *special_data = (unsigned char *)malloc(special_data_size);
+		unsigned char *special_data = (unsigned char *) malloc (special_data_size);
 		fread(special_data, 1, special_data_size, psar);
 
 		printf("Decrypting special data...\n");
@@ -158,7 +158,7 @@ int decrypt_unknown_data(FILE *psar, int unknown_data_offset, int startdat_offse
 
 		// Read the data.
 		int unknown_data_size = startdat_offset - unknown_data_offset;   // Always located before the STARDAT and after the ISO.
-		unsigned char *unknown_data = (unsigned char *)malloc(unknown_data_size);
+		unsigned char *unknown_data = (unsigned char *) malloc (unknown_data_size);
 		fread(unknown_data, 1, unknown_data_size, psar);
 
 		printf("Decrypting unknown data...\n");
@@ -196,7 +196,7 @@ int decrypt_iso_header(FILE *psar, int header_offset, int header_size, unsigned 
 	fseek(psar, header_offset, SEEK_SET);
 
 	// Read the ISO header.
-	unsigned char *iso_header = (unsigned char *)malloc(header_size);
+	unsigned char *iso_header = (unsigned char *) malloc (header_size);
 	fread(iso_header, header_size, 1, psar);
 
 	printf("Decrypting ISO header...\n");
@@ -233,7 +233,7 @@ int decrypt_iso_map(FILE *psar, int map_offset, int map_size, unsigned char *pgd
 	fseek(psar, map_offset, SEEK_SET);
 
 	// Read the ISO map.
-	unsigned char *iso_map = (unsigned char *)malloc(map_size);
+	unsigned char *iso_map = (unsigned char *) malloc (map_size);
 	fread(iso_map, map_size, 1, psar);
 
 	printf("Decrypting ISO disc map...\n");
@@ -328,134 +328,18 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 	return 0;
 }
 
-int patch_iso(char *iso_file_name, char *cue_file_name, unsigned char *iso_disc_name)
+int convert_iso(char *iso_file_name, char *cdrom_file_name, char *cue_file_name, unsigned char *iso_disc_name)
 {
-	// Re-open in read update mode (just to be safe).
-	FILE* iso_file = fopen(iso_file_name, "r+b");
-	if (iso_file == NULL)
-	{
-		printf("ERROR: No ISO image found!\n");
-		return -1;
-	}
-	
-	// Select the right region license file (NTSC-U, NTSC-J or PAL).
-	char* license_file_path = NULL;
-	if ((!strncmp((const char *)iso_disc_name, "_SLUS_", 6)) ||
-		(!strncmp((const char *)iso_disc_name, "_SCUS_", 6)))
-		license_file_path = "../External/LICENSEA.DAT";
-	else if ((!strncmp((const char *)iso_disc_name, "_SLES_", 6)) ||
-		(!strncmp((const char *)iso_disc_name, "_SCES_", 6)))
-		license_file_path = "../External/LICENSEE.DAT";
-	else if ((!strncmp((const char *)iso_disc_name, "_SLPS_", 6)) ||
-		(!strncmp((const char *)iso_disc_name, "_SCPS_", 6)) ||
-		(!strncmp((const char *)iso_disc_name, "_SLPA_", 6)) ||
-		(!strncmp((const char *)iso_disc_name, "_SLPM_", 6)))
-		license_file_path = "../External/LICENSEJ.DAT";
-	else
-	{
-		printf("ERROR: Unknown license for disc %s\n", iso_disc_name);
-		return -1;
-	}
-	
-	// Open the license file.
-	FILE* license_file = fopen(license_file_path, "rb");
-	if (license_file == NULL)
-	{
-		printf("ERROR: No license file found!\n");
-		return -1;
-	}
-	
-	// Overwrite the first raw sector of the ISO with the license data.
-	unsigned char license_data[0x9300];
-	memset(license_data, 0, 0x9300);
-			
-	fread(license_data, 0x9300, 1, license_file);
-	fseek(iso_file, 0, SEEK_SET);
-	fwrite(license_data, 0x9300, 1, iso_file);
+	// Set the CD-ROM file path.
+	char cdrom_file_path[256] = "../CDROM/", cue_file_path[256] = "../CDROM/";
+	strcat(cdrom_file_path, cdrom_file_name);
+	strcat(cue_file_path, cue_file_name);
 
-	// Get the total number of raw blocks in the ISO image.
-	int raw_blocks_num = 0;
-	int raw_blocks_count = 0;
+	// Patch ECC/EDC and build a new proper CD-ROM image for this ISO.
+	make_cdrom(iso_file_name, cdrom_file_path, false);
 
-	fseek(iso_file, 0, SEEK_END);
-	raw_blocks_num = ftell(iso_file) / 0x930;
-	fseek(iso_file, 0, SEEK_SET);
-
-	// Skip the first 16 blocks (license data).
-	raw_blocks_num -= 16;
-	raw_blocks_count = 0x16;			
-	
-	// Build the structural information for each sector (CD-ROM XA).
-	unsigned char raw_sector_header[0x10];		   // Composed by sync pattern (12 bytes), address (3 bytes) and mode (1 byte);
-	unsigned char raw_sector_sub_header[0x8];      // Specific sub header.
-	unsigned char raw_sector_edc[0x4];			   // Error detection.
-	unsigned char raw_sector_ecc[0x114];           // Error correction.
-
-	memset(raw_sector_header, 0xFF, 0x10);
-	raw_sector_header[0] = 0;
-	raw_sector_header[0xB] = 0;
-	raw_sector_header[0xC] = 0;
-	raw_sector_header[0xD] = 2;
-	raw_sector_header[0xE] = 0x15;
-	raw_sector_header[0xF] = 2;
-	memset(raw_sector_sub_header, 0, 0x8);
-	memset(raw_sector_edc, 0, 0x4);
-	memset(raw_sector_ecc, 0, 0x114);
-
-	// Generate new EDC/ECC tables.
-	generate_edc_ecc_tables();
-
-	// Store each block for EDC/ECC calculations.
-	unsigned char raw_block[0x808];
-	memset(raw_block, 0, 0x808);
-	
-	// Write the sector header for each block.
-	int i;
-	for (i = 0; i < raw_blocks_num; i++)
-	{
-		// Calculate the sector address (minutes:seconds:frames).
-		if (raw_sector_header[0xE] >= 0x74) 
-		{
-			raw_sector_header[0xD]++;
-			if (((raw_sector_header[0xD]) & 0xA) == 0xA) raw_sector_header[0xD] += 6;
-			raw_sector_header[0xE] = 0;
-			
-			if (raw_sector_header[0xD] >= 0x60)
-			{
-				raw_sector_header[0xC]++;
-				if (((raw_sector_header[0xC]) & 0xA) == 0xA) raw_sector_header[0xC] += 6;
-				raw_sector_header[0xD] = 0;
-			} 
-		}
-		else 
-		{
-			raw_sector_header[0xE]++;
-			if (((raw_sector_header[0xE]) & 0xA) == 0xA) raw_sector_header[0xE] += 6;
-		}
-
-		// Store the calculated header.
-		fseek(iso_file, 0x9300 + 0x930 * i, SEEK_SET);
-		fwrite(raw_sector_header, 0x10, 1, iso_file);
-
-		// Generate new copy protection data.
-		fseek(iso_file, 0x9300 + 0x10 + 0x930 * i, SEEK_SET);
-		fread(raw_block, 0x808, 1, iso_file);
-		calculate_edc(raw_block, 0x808, raw_sector_edc);
-		calculate_ecc(raw_block, raw_sector_ecc);
-		
-		// Forge the copy protection data.		
-		fseek(iso_file, 0x9300 + 0x18 + 0x800 + 0x930 * i, SEEK_SET);
-		fwrite(raw_sector_edc, 0x4, 1, iso_file);
-		fwrite(raw_sector_ecc, 0x114, 1, iso_file);
-
-		// Reset data.
-		memset(raw_block, 0, 0x808);
-		memset(raw_sector_edc, 0, 0x4);
-		memset(raw_sector_ecc, 0, 0x114);
-	}
-
-	// Generate a new CUE file.
-	FILE* cue_file = fopen(cue_file_name, "wb");
+	// Generate a CUE file for mounting/burning.
+	FILE* cue_file = fopen(cue_file_path, "wb");
 	if (cue_file == NULL)
 	{
 		printf("ERROR: Can't write CUE file!\n");
@@ -466,17 +350,14 @@ int patch_iso(char *iso_file_name, char *cue_file_name, unsigned char *iso_disc_
 
 	char cue[0x100];
 	memset(cue, 0, 0x100);
-	sprintf(cue, "FILE \"%s\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n", iso_file_name);
+	sprintf(cue, "FILE \"%s\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n", cdrom_file_name);
 	fputs(cue, cue_file);
-
 	fclose(cue_file);
-	fclose(license_file);
-	fclose(iso_file);
 
 	return 0;
 }
 
-int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key, bool patch)
+int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key, bool conv)
 {
 	// Decrypt the ISO header and get the block table.
 	// NOTE: In a single disc, the ISO header is located at offset 0x400 and has a length of 0xB6600.
@@ -531,21 +412,21 @@ int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned
 	else
 		printf("ISO image successfully reconstructed! Saving as ISO.BIN...\n\n");
 
-	// Patch the ISO binary image if required.
-	if (patch)
+	// Convert the final ISO image if required.
+	if (conv)
 	{
-		printf("Patching the final ISO image...\n");
-		if (patch_iso("ISO.BIN", "ISO.CUE", iso_disc_name))
-			printf("ERROR: Failed to patch the ISO image!\n");
+		printf("Converting the final ISO image...\n");
+		if (convert_iso("ISO.BIN", "CDROM.BIN", "CDROM.CUE", iso_disc_name))
+			printf("ERROR: Failed to convert the ISO image!\n");
 		else
-			printf("ISO image successfully patched!\n");
+			printf("ISO image successfully converted to CD-ROM format!\n");
 	}
 
 	fclose(iso_table);
 	return 0;
 }
 
-int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key, bool patch)
+int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned char *pgd_key, bool conv)
 {
 	// Decrypt the multidisc ISO map header and get the disc map.
 	// NOTE: The ISO map header is located at offset 0x200 and 
@@ -624,14 +505,14 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_1.BIN...\n\n");
 
-		// Patch the ISO license sector if required.
-		if (patch)
+		// Convert the ISO image if required.
+		if (conv)
 		{
-			printf("Patching the ISO image number 1...\n");
-			if (patch_iso("ISO_1.BIN", "ISO_1.CUE", iso_disc_name))
-				printf("ERROR: Failed to patch ISO image number 1!\n\n");
+			printf("Converting ISO image number 1...\n");
+			if (convert_iso("ISO_1.BIN", "CDROM_1.BIN", "CDROM_1.CUE", iso_disc_name))
+				printf("ERROR: Failed to convert ISO image number 1!\n\n");
 			else
-				printf("ISO image number 1 successfully patched!\n\n");
+				printf("ISO image number 1 successfully converted to CD-ROM format!\n\n");
 		}
 
 		disc_count++;
@@ -659,14 +540,14 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_2.BIN...\n\n");
 
-		// Patch the ISO license sector if required.
-		if (patch)
+		// Convert the ISO image if required.
+		if (conv)
 		{
-			printf("Patching the ISO image number 2...\n");
-			if (patch_iso("ISO_2.BIN", "ISO_2.CUE", iso_disc_name))
-				printf("ERROR: Failed to patch ISO image number 2!\n\n");
+			printf("Converting ISO image number 2...\n");
+			if (convert_iso("ISO_2.BIN", "CDROM_2.BIN", "CDROM_2.CUE", iso_disc_name))
+				printf("ERROR: Failed to convert ISO image number 2!\n\n");
 			else
-				printf("ISO image number 2 successfully patched!\n\n");
+				printf("ISO image number 2 successfully converted to CD-ROM format!\n\n");
 		}
 
 		disc_count++;
@@ -694,14 +575,14 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_3.BIN...\n\n");
 
-		// Patch the ISO license sector if required.
-		if (patch)
+		// Convert the ISO image if required.
+		if (conv)
 		{
-			printf("Patching the ISO image number 3...\n");
-			if (patch_iso("ISO_3.BIN", "ISO_3.CUE", iso_disc_name))
-				printf("ERROR: Failed to patch ISO image number 3!\n\n");
+			printf("Converting ISO image number 3...\n");
+			if (convert_iso("ISO_3.BIN", "CDROM_3.BIN", "CDROM_3.CUE", iso_disc_name))
+				printf("ERROR: Failed to convert ISO image number 1!\n\n");
 			else
-				printf("ISO image number 3 successfully patched!\n\n");
+				printf("ISO image number 3 successfully converted to CD-ROM format!\n\n");
 		}
 
 		disc_count++;
@@ -729,14 +610,14 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_4.BIN...\n\n");
 
-		// Patch the ISO license sector if required.
-		if (patch)
+		// Convert the ISO image if required.
+		if (conv)
 		{
-			printf("Patching the ISO image number 4...\n");
-			if (patch_iso("ISO_4.BIN", "ISO_4.CUE", iso_disc_name))
-				printf("ERROR: Failed to patch ISO image number 4!\n\n");
+			printf("Converting ISO image number 4...\n");
+			if (convert_iso("ISO_4.BIN", "CDROM_4.BIN", "CDROM_4.CUE", iso_disc_name))
+				printf("ERROR: Failed to convert ISO image number 4!\n\n");
 			else
-				printf("ISO image number 4 successfully patched!\n\n");
+				printf("ISO image number 4 successfully converted to CD-ROM format!\n\n");
 		}
 
 		disc_count++;
@@ -764,14 +645,14 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		else
 			printf("ISO image successfully reconstructed! Saving as ISO_5.BIN...\n\n");
 
-		// Patch the ISO license sector if required.
-		if (patch)
+		// Convert the ISO image if required.
+		if (conv)
 		{
-			printf("Patching the ISO image number 5...\n");
-			if (patch_iso("ISO_5.BIN", "ISO_5.CUE", iso_disc_name))
-				printf("ERROR: Failed to patch ISO image number 5!\n\n");
+			printf("Converting ISO image number 5...\n");
+			if (convert_iso("ISO_5.BIN", "CDROM_5.BIN", "CDROM_5.CUE", iso_disc_name))
+				printf("ERROR: Failed to convert ISO image number 5!\n\n");
 			else
-				printf("ISO image number 5 successfully patched!\n\n");
+				printf("ISO image number 5 successfully converted to CD-ROM format!\n\n");
 		}
 
 		disc_count++;
@@ -791,8 +672,8 @@ int main(int argc, char **argv)
 		printf("psxtract - Convert your PSOne Classics to ISO format.\n");
 		printf("         - Written by Hykem (C).\n");
 		printf("*****************************************************\n\n");
-		printf("Usage: psxtract [-p] <EBOOT.PBP> <DOCUMENT.DAT> <KEYS.BIN>\n");
-		printf("[-p] - Patch the final ISO image (PSOne original BIN/CUE format).\n");
+		printf("Usage: psxtract [-c] <EBOOT.PBP> <DOCUMENT.DAT> <KEYS.BIN>\n");
+		printf("[-c] - Convert raw image to the original PSOne CD-ROM format.\n");
 		printf("<EBOOT.PBP> - Your PSOne Classic main PBP.\n");
 		printf("<DOCUMENT.DAT> - Game manual file (optional).\n");
 		printf("<KEYS.BIN> - Key file (optional).\n");
@@ -802,11 +683,11 @@ int main(int argc, char **argv)
 	// Keep track of the each argument's offset.
 	int arg_offset = 0;
 
-	// Check if the final ISO images will have license patching.
-	bool patch = false;
-	if (!strcmp(argv[1], "-p"))
+	// Check if we're converting data into CD-ROM format.
+	bool conv = false;
+	if (!strcmp(argv[1], "-c"))
 	{
-		patch = true;
+		conv = true;
 		arg_offset++;
 	}
 
@@ -863,8 +744,29 @@ int main(int argc, char **argv)
 	else
 		printf("Successfully unpacked %s!\n\n", argv[arg_offset + 1]);
 
+	// Change the directory back.
+	chdir("..");
+
+	// Make a directory for CD-ROM images if required.
+	if (conv)
+	{
+		#ifdef __linux__
+			mkdir("CDROM", 0777);
+		#else
+			mkdir("CDROM");
+		#endif
+	}
+	
+	// Make a new directory for the ISO data.
+	#ifdef __linux__
+		mkdir("ISO", 0777);
+	#else
+		mkdir("ISO");
+	#endif
+	chdir("ISO");
+
 	// Locate DATA.PSAR.
-	FILE* psar = fopen("DATA.PSAR", "rb");
+	FILE* psar = fopen("../PBP/DATA.PSAR", "rb");
 	if (psar == NULL)
 	{
 		printf("ERROR: No DATA.PSAR found!\n");
@@ -909,9 +811,9 @@ int main(int argc, char **argv)
 
 	// Decrypt the disc(s).
 	if (isMultidisc)
-		decrypt_multi_disc(psar, psar_size, startdat_offset, pgd_key, patch);
+		decrypt_multi_disc(psar, psar_size, startdat_offset, pgd_key, conv);
 	else
-		decrypt_single_disc(psar, psar_size, startdat_offset, pgd_key, patch);
+		decrypt_single_disc(psar, psar_size, startdat_offset, pgd_key, conv);
 
 	// Change the directory back.
 	chdir("..");

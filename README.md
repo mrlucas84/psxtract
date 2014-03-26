@@ -13,6 +13,9 @@ encryption/decryption and the AMCTRL functions.
 Notes
 -------
 
+Using the "-c" option in the command line, psxtract will additionally
+convert the resulting ISO image to a mountable PSOne CD-ROM binary image (BIN/CUE).
+
 You may supply a KEYS.BIN file to the tool, but this is not necessary.
 Using the internal files' hashes, psxtract can calculate the key by itself.
 
@@ -31,6 +34,9 @@ please check the following sources:
 - AMCTRL functions:
   https://code.google.com/p/jpcsp/source/browse/trunk/src/jpcsp/crypto/AMCTRL.java (JPCSP)
   https://github.com/tpunix/kirk_engine/blob/master/kirk/amctrl.c (tpunix)
+  
+- CD-ROM ECC/EDC:
+  https://github.com/DeadlySystem/isofix (Daniel Huguenin)
 
 
 Working games and compatibility
@@ -54,11 +60,13 @@ The following games have been tested with ePSXe and are known to work. All games
 - Spyro 2: Ripto's Rage
 - Spyro Year of the Dragon
 
-Note that other PS1 emulators do not seem to be able to play these games. If a game does not appear on this list, that does not mean it won't work - it means it hasn't been tested yet. All tested games have worked so far. If you experience graphic issues, it will be due to the settings of your emulator. For example, in Final Fantasy IX and Breath of Fire IV, the battle intro animation will not happen or look different from the original game with default ePSXe settings. Make sure to set "Framebuffer effects" to 1 or more in the settings of Pete's graphics plugin. Enabling off-screen drawing is also worth a shot. The games from the PSN store should be full versions. For example, Crash Bandicoot 3 even includes the demo of Spyro the Dragon which is accessible through a cheat code in the main menu, just like the original game.
+If a game does not appear on this list, that does not mean it won't work - it means it hasn't been tested yet. All tested games have worked so far. If you experience graphic issues, it will be due to the settings of your emulator. For example, in Final Fantasy IX and Breath of Fire IV, the battle intro animation will not happen or look different from the original game with default ePSXe settings. Make sure to set "Framebuffer effects" to 1 or more in the settings of Pete's graphics plugin. Enabling off-screen drawing is also worth a shot. The games from the PSN store should be full versions. For example, Crash Bandicoot 3 even includes the demo of Spyro the Dragon which is accessible through a cheat code in the main menu, just like the original game.
 
 
 Credits
 -------
+
+Daniel Huguenin (implementation of ECC/EDC CD-ROM patching) 
 
 Draan, Proxima and everyone involved in kirk-engine (libkirk source code)
 

@@ -6,6 +6,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+#include "cdrom.h"
 #include "lz.h"
 #include "crypto.h"
 
