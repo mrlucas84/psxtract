@@ -42,6 +42,12 @@ int extract_startdat(FILE *psar, bool isMultidisc)
 		FILE* startdat = fopen("STARTDAT.BIN", "wb");
 		fwrite(startdat_data, startdat_size, 1, startdat);
 		fclose(startdat);
+
+		// Store the STARTDAT.PNG
+		FILE* startdatpng = fopen("STARTDAT.PNG", "wb");
+		fwrite(startdat_data + startdat_header->header_size, startdat_header->data_size, 1, startdatpng);
+		fclose(startdatpng);
+
 		delete[] startdat_data;
 
 		printf("Saving STARTDAT as STARTDAT.BIN...\n\n");
@@ -135,6 +141,12 @@ int decrypt_special_data(FILE *psar, int psar_size, int special_data_offset)
 		FILE* dec_special_data = fopen("SPECIAL_DATA.BIN", "wb");
 		fwrite(special_data + 0x90, 1, pgd_size, dec_special_data);
 		fclose(dec_special_data);
+
+		// Store the decrypted special data png.
+		FILE* dec_special_data_png = fopen("SPECIAL_DATA.PNG", "wb");
+		fwrite(special_data + 0xAC, 1, pgd_size - 0x1C, dec_special_data_png);
+		fclose(dec_special_data_png);
+
 		delete[] special_data;
 	}
 
@@ -184,7 +196,7 @@ int decrypt_unknown_data(FILE *psar, int unknown_data_offset, int startdat_offse
 	return 0;
 }
 
-int decrypt_iso_header(FILE *psar, int header_offset, int header_size, unsigned char *pgd_key)
+int decrypt_iso_header(FILE *psar, int header_offset, int header_size, unsigned char *pgd_key, int disc_num)
 {
 	if (psar == NULL)
 	{
@@ -212,10 +224,21 @@ int decrypt_iso_header(FILE *psar, int header_offset, int header_size, unsigned 
 		return -1;
 	}
 
+	// Choose the output ISO header file name based on the disc number.
+	char iso_header_filename[0x12];
+	sprintf(iso_header_filename, "ISO_HEADER.BIN");
+
 	// Store the decrypted ISO header.
-	FILE* dec_iso_header = fopen("ISO_HEADER.BIN", "wb");
+	FILE* dec_iso_header = fopen(iso_header_filename, "wb");
 	fwrite(iso_header + 0x90, pgd_size, 1, dec_iso_header);
 	fclose(dec_iso_header);
+	if (disc_num > 0)
+	{
+		sprintf(iso_header_filename, "ISO_HEADER_%d.BIN", disc_num);
+		dec_iso_header = fopen(iso_header_filename, "wb");
+		fwrite(iso_header + 0x90, pgd_size, 1, dec_iso_header);
+		fclose(dec_iso_header);
+	}
 	delete[] iso_header;
 
 	return 0;
@@ -311,7 +334,7 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 			decompress(iso_block_decomp, iso_block_comp, iso_block_size);
 		else								// Not compressed.
 			memcpy(iso_block_decomp, iso_block_comp, iso_block_size);
-
+		
 		// Write it to the output file.
 		fwrite(iso_block_decomp, iso_block_size, 1, iso);
 
@@ -328,7 +351,82 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 	return 0;
 }
 
-int convert_iso(char *iso_file_name, char *cdrom_file_name, char *cue_file_name, unsigned char *iso_disc_name)
+int build_audio(FILE *psar, FILE *iso_table, int base_offset, unsigned char *pgd_key)
+{	
+	if ((psar == NULL) || (iso_table == NULL))
+	{
+		printf("ERROR: Can't open input files for extracting audio tracks!\n");
+		return -1;
+	}
+	char track_filename[0x10];
+	int i=1;
+	int iso_base_offset = 0x100000 + base_offset;  // Start of audio tracks.
+
+	CDDA_ENTRY audio_entry[sizeof(CDDA_ENTRY)];
+	memset(audio_entry, 0, sizeof(CDDA_ENTRY));
+
+	int audio_offset = 0x800;  // Fixed audio table offset.
+	
+	// Read the first entry.
+	fseek(iso_table, audio_offset, SEEK_SET);
+	fread(audio_entry, sizeof(CDDA_ENTRY), 1, iso_table);
+	if (audio_entry->offset == 0)
+	{
+		printf("there is no audio tracks in the ISO!\n");
+	}
+	while (audio_entry->offset)
+	{
+		// Choose the output track file name based on the counter.
+		i++;
+		
+		// Locate the block offset in the DATA.PSAR.
+		fseek(psar, iso_base_offset + audio_entry->offset, SEEK_SET);
+
+		// Read the data.
+		unsigned char *track_data = new unsigned char[audio_entry->size];
+		fread(track_data, 1, audio_entry->size, psar);
+
+		// Store the decrypted unknown data.
+		// Open a new file to write the track image.
+		sprintf(track_filename, "TRACK %02d.BIN", i);
+		FILE* track = fopen(track_filename, "wb");
+		if (track == NULL)
+		{
+			printf("ERROR: Can't open output file for audio track %d!\n", i);
+			return -1;
+		}
+
+		printf("Extracting audio track...%02d!\n", i);
+
+		// Decrypt the PGD and save the data.
+		// int pgd_size = decrypt_pgd(track_data, audio_entry->size, 2, pgd_key);
+		// // or
+		// int pgd_size = decrypt_pgd(track_data, audio_entry->size, 2, NULL);
+
+		// if (pgd_size > 0)
+			// printf("Audio track successfully decrypted!\n", i);
+		// else
+		// {
+			// printf("ERROR: Audio track %d decryption failed!\n\n", i);
+			// return -1;
+		// }
+
+		// fwrite(track_data, 1, pgd_size, track);
+		fwrite(track_data, 1, audio_entry->size, track);
+		// unsigned char iso_block_decomp[0x3000000]; // Decompressed block.
+		// decompress(iso_block_decomp, track_data, audio_entry->size);
+
+		fclose(track);
+		delete[] track_data;
+		audio_offset += sizeof(CDDA_ENTRY);
+		// Go to next entry.
+		fseek(iso_table, audio_offset, SEEK_SET);
+		fread(audio_entry, sizeof(CDDA_ENTRY), 1, iso_table);
+	}
+	return 0;
+}
+
+int convert_iso(FILE *iso_table, char *iso_file_name, char *cdrom_file_name, char *cue_file_name, unsigned char *iso_disc_name)
 {
 	// Set the CD-ROM file path.
 	char cdrom_file_path[256] = "../CDROM/", cue_file_path[256] = "../CDROM/";
@@ -352,6 +450,58 @@ int convert_iso(char *iso_file_name, char *cdrom_file_name, char *cue_file_name,
 	memset(cue, 0, 0x100);
 	sprintf(cue, "FILE \"%s\" BINARY\n  TRACK 01 MODE2/2352\n    INDEX 01 00:00:00\n", cdrom_file_name);
 	fputs(cue, cue_file);
+
+	// genereating cue table
+	CUE_ENTRY cue_entry[sizeof(CUE_ENTRY)];
+	memset(cue_entry, 0, sizeof(CUE_ENTRY));
+
+	int cue_offset = 0x428;  // track 02 offset
+	int i = 1;
+
+	// Read track 02
+	fseek(iso_table, cue_offset, SEEK_SET);
+	fread(cue_entry, sizeof(CUE_ENTRY), 1, iso_table);
+	while (cue_entry->type)
+	{
+		int ff1, ss1, mm1;
+		i++;
+		// convert 0xXY into decimal XY
+		mm1 = 10 * (cue_entry->I1m - cue_entry->I1m % 16) / 16 + cue_entry->I1m % 16;
+		ss1 = 10 * (cue_entry->I1s - cue_entry->I1s % 16) / 16 + cue_entry->I1s % 16 - 2; // minus 2 seconds pregap
+		if (ss1 < 0)
+		{
+			ss1 = 60 + ss1;
+			mm1 = mm1 - 1;
+		}
+		ff1 = 10 * (cue_entry->I1f - cue_entry->I1f % 16) / 16 + cue_entry->I1f % 16;
+
+		memset(cue, 0, 0x100);
+		sprintf(cue, "  TRACK %02d AUDIO\n", i);
+		fputs(cue, cue_file);
+		if (i == 2)
+		{
+			memset(cue, 0, 0x100);
+			int mm0, ss0;
+			ss0 = ss1 - 2;
+			mm0 = mm1;
+			if (ss0 < 0)
+			{
+				ss0 = 60 + ss0;
+				mm0 = mm1 - 1;
+			}
+			sprintf(cue, "    INDEX 00 %02d:%02d:%02d\n", mm0, ss0, ff1);
+			fputs(cue, cue_file);
+		}
+		memset(cue, 0, 0x100);
+		sprintf(cue, "    INDEX 01 %02d:%02d:%02d\n", mm1, ss1, ff1);
+		fputs(cue, cue_file);
+
+		cue_offset += sizeof(CUE_ENTRY);
+		// Read next track
+		fseek(iso_table, cue_offset, SEEK_SET);
+		fread(cue_entry, sizeof(CUE_ENTRY), 1, iso_table);
+	}
+
 	fclose(cue_file);
 
 	return 0;
@@ -361,7 +511,7 @@ int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned
 {
 	// Decrypt the ISO header and get the block table.
 	// NOTE: In a single disc, the ISO header is located at offset 0x400 and has a length of 0xB6600.
-	if (decrypt_iso_header(psar, 0x400, 0xB6600, pgd_key))
+	if (decrypt_iso_header(psar, 0x400, 0xB6600, pgd_key, 0))
 		printf("Aborting...\n");
 
 	// Re-open in read mode (just to be safe).
@@ -412,11 +562,16 @@ int decrypt_single_disc(FILE *psar, int psar_size, int startdat_offset, unsigned
 	else
 		printf("ISO image successfully reconstructed! Saving as ISO.BIN...\n\n");
 
+	if (build_audio(psar, iso_table, 0, pgd_key))
+		printf("Audio track extraction failed!\n\n");
+	else
+		printf("Audio tracks extracted...\n\n");
+
 	// Convert the final ISO image if required.
 	if (conv)
 	{
 		printf("Converting the final ISO image...\n");
-		if (convert_iso("ISO.BIN", "CDROM.BIN", "CDROM.CUE", iso_disc_name))
+		if (convert_iso(iso_table, "ISO.BIN", "CDROM.BIN", "CDROM.CUE", iso_disc_name))
 			printf("ERROR: Failed to convert the ISO image!\n");
 		else
 			printf("ISO image successfully converted to CD-ROM format!\n");
@@ -487,7 +642,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 	{
 		// Decrypt the ISO header and get the block table.
 		// NOTE: In multidisc, the ISO header is located at the disc offset + 0x400 bytes. 
-		if (decrypt_iso_header(psar, disc1_offset + 0x400, 0xB6600, pgd_key))
+		if (decrypt_iso_header(psar, disc1_offset + 0x400, 0xB6600, pgd_key, 1))
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
@@ -509,7 +664,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		if (conv)
 		{
 			printf("Converting ISO image number 1...\n");
-			if (convert_iso("ISO_1.BIN", "CDROM_1.BIN", "CDROM_1.CUE", iso_disc_name))
+			if (convert_iso(iso_table, "ISO_1.BIN", "CDROM_1.BIN", "CDROM_1.CUE", iso_disc_name))
 				printf("ERROR: Failed to convert ISO image number 1!\n\n");
 			else
 				printf("ISO image number 1 successfully converted to CD-ROM format!\n\n");
@@ -522,7 +677,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 	{
 		// Decrypt the ISO header and get the block table.
 		// NOTE: In multidisc, the ISO header is located at the disc offset + 0x400 bytes. 
-		if (decrypt_iso_header(psar, disc2_offset + 0x400, 0xB6600, pgd_key))
+		if (decrypt_iso_header(psar, disc2_offset + 0x400, 0xB6600, pgd_key, 2))
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
@@ -544,7 +699,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		if (conv)
 		{
 			printf("Converting ISO image number 2...\n");
-			if (convert_iso("ISO_2.BIN", "CDROM_2.BIN", "CDROM_2.CUE", iso_disc_name))
+			if (convert_iso(iso_table, "ISO_2.BIN", "CDROM_2.BIN", "CDROM_2.CUE", iso_disc_name))
 				printf("ERROR: Failed to convert ISO image number 2!\n\n");
 			else
 				printf("ISO image number 2 successfully converted to CD-ROM format!\n\n");
@@ -557,7 +712,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 	{
 		// Decrypt the ISO header and get the block table.
 		// NOTE: In multidisc, the ISO header is located at the disc offset + 0x400 bytes. 
-		if (decrypt_iso_header(psar, disc3_offset + 0x400, 0xB6600, pgd_key))
+		if (decrypt_iso_header(psar, disc3_offset + 0x400, 0xB6600, pgd_key, 3))
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
@@ -579,7 +734,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		if (conv)
 		{
 			printf("Converting ISO image number 3...\n");
-			if (convert_iso("ISO_3.BIN", "CDROM_3.BIN", "CDROM_3.CUE", iso_disc_name))
+			if (convert_iso(iso_table, "ISO_3.BIN", "CDROM_3.BIN", "CDROM_3.CUE", iso_disc_name))
 				printf("ERROR: Failed to convert ISO image number 1!\n\n");
 			else
 				printf("ISO image number 3 successfully converted to CD-ROM format!\n\n");
@@ -592,7 +747,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 	{
 		// Decrypt the ISO header and get the block table.
 		// NOTE: In multidisc, the ISO header is located at the disc offset + 0x400 bytes. 
-		if (decrypt_iso_header(psar, disc4_offset + 0x400, 0xB6600, pgd_key))
+		if (decrypt_iso_header(psar, disc4_offset + 0x400, 0xB6600, pgd_key, 4))
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
@@ -614,7 +769,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		if (conv)
 		{
 			printf("Converting ISO image number 4...\n");
-			if (convert_iso("ISO_4.BIN", "CDROM_4.BIN", "CDROM_4.CUE", iso_disc_name))
+			if (convert_iso(iso_table, "ISO_4.BIN", "CDROM_4.BIN", "CDROM_4.CUE", iso_disc_name))
 				printf("ERROR: Failed to convert ISO image number 4!\n\n");
 			else
 				printf("ISO image number 4 successfully converted to CD-ROM format!\n\n");
@@ -627,7 +782,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 	{
 		// Decrypt the ISO header and get the block table.
 		// NOTE: In multidisc, the ISO header is located at the disc offset + 0x400 bytes. 
-		if (decrypt_iso_header(psar, disc5_offset + 0x400, 0xB6600, pgd_key))
+		if (decrypt_iso_header(psar, disc5_offset + 0x400, 0xB6600, pgd_key, 5))
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
@@ -649,7 +804,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 		if (conv)
 		{
 			printf("Converting ISO image number 5...\n");
-			if (convert_iso("ISO_5.BIN", "CDROM_5.BIN", "CDROM_5.CUE", iso_disc_name))
+			if (convert_iso(iso_table, "ISO_5.BIN", "CDROM_5.BIN", "CDROM_5.CUE", iso_disc_name))
 				printf("ERROR: Failed to convert ISO image number 5!\n\n");
 			else
 				printf("ISO image number 5 successfully converted to CD-ROM format!\n\n");
