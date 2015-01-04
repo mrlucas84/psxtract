@@ -307,6 +307,8 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 	else
 		sprintf(iso_filename, "ISO.BIN");
 
+	// Open a new file to write overdump
+	FILE* overdump = fopen("OVERDUMP.BIN", "wb");
 	// Open a new file to write the ISO image.
 	FILE* iso = fopen(iso_filename, "wb");
 	if (iso == NULL)
@@ -334,10 +336,45 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 			decompress(iso_block_decomp, iso_block_comp, iso_block_size);
 		else								// Not compressed.
 			memcpy(iso_block_decomp, iso_block_comp, iso_block_size);
-		
+
+		// trash and overdump generating
+		if (entry->marker == 0)
+		{
+			int trash_start = 0, trash_size = 0;
+			unsigned int sector;			
+			do
+			{
+				// search for first non 00 FF FF FF
+				sector = iso_block_decomp[trash_start] + 256 * (iso_block_decomp[trash_start + 1] + 256 * (iso_block_decomp[trash_start + 2] + 256 * iso_block_decomp[trash_start + 3]));
+				trash_start = trash_start + 2352;
+			} while (sector == 0xFFFFFF00);
+			trash_start = trash_start - 2352;
+			do
+			{
+				// search for first zero padding (4 bytes length)
+				sector = iso_block_decomp[trash_start + trash_size] + 256 * (iso_block_decomp[trash_start + trash_size + 1] + 256 * (iso_block_decomp[trash_start + trash_size + 2] + 256 * iso_block_decomp[trash_start + trash_size + 3]));
+				trash_size = trash_size + 4;
+			} while (sector != 0);
+			trash_size = trash_size - 4;
+			if (trash_size != 0)
+			{
+				FILE* trash = fopen("TRASH.BIN", "wb");
+				fwrite(iso_block_decomp + trash_start, trash_size, 1, trash);
+				fclose(trash);
+				// write before trash
+				// fwrite(iso_block_decomp, trash_start, 1, iso);
+				// write after trash
+				// fwrite(iso_block_decomp + trash_start + trash_size, iso_block_size - trash_start - trash_size, 1, iso);
+				// start writing overdump
+				fwrite(iso_block_decomp + trash_start + trash_size, iso_block_size - trash_start - trash_size, 1, overdump);
+			}
+			else
+				fwrite(iso_block_decomp, iso_block_size, 1, overdump);
+		}
+
 		// Write it to the output file.
 		fwrite(iso_block_decomp, iso_block_size, 1, iso);
-
+					
 		// Clear buffers.
 		memset(iso_block_comp, 0, iso_block_size);
 		memset(iso_block_decomp, 0, iso_block_size);
@@ -347,6 +384,7 @@ int build_iso(FILE *psar, FILE *iso_table, int base_offset, int disc_num)
 		fseek(iso_table, table_offset, SEEK_SET);
 		fread(entry, sizeof(ISO_ENTRY), 1, iso_table);
 	}
+	fclose(overdump);
 	fclose(iso);
 	return 0;
 }
@@ -463,7 +501,7 @@ int convert_iso(FILE *iso_table, char *iso_file_name, char *cdrom_file_name, cha
 	fread(cue_entry, sizeof(CUE_ENTRY), 1, iso_table);
 	while (cue_entry->type)
 	{
-		int ff1, ss1, mm1;
+		int ff1, ss1, mm1, mm0, ss0;
 		i++;
 		// convert 0xXY into decimal XY
 		mm1 = 10 * (cue_entry->I1m - cue_entry->I1m % 16) / 16 + cue_entry->I1m % 16;
@@ -478,20 +516,17 @@ int convert_iso(FILE *iso_table, char *iso_file_name, char *cdrom_file_name, cha
 		memset(cue, 0, 0x100);
 		sprintf(cue, "  TRACK %02d AUDIO\n", i);
 		fputs(cue, cue_file);
-		if (i == 2)
+		memset(cue, 0, 0x100);
+		ss0 = ss1 - 2;
+		mm0 = mm1;
+		if (ss0 < 0)
 		{
-			memset(cue, 0, 0x100);
-			int mm0, ss0;
-			ss0 = ss1 - 2;
-			mm0 = mm1;
-			if (ss0 < 0)
-			{
-				ss0 = 60 + ss0;
-				mm0 = mm1 - 1;
-			}
-			sprintf(cue, "    INDEX 00 %02d:%02d:%02d\n", mm0, ss0, ff1);
-			fputs(cue, cue_file);
+			ss0 = 60 + ss0;
+			mm0 = mm1 - 1;
 		}
+		sprintf(cue, "    INDEX 00 %02d:%02d:%02d\n", mm0, ss0, ff1);
+		fputs(cue, cue_file);
+		
 		memset(cue, 0, 0x100);
 		sprintf(cue, "    INDEX 01 %02d:%02d:%02d\n", mm1, ss1, ff1);
 		fputs(cue, cue_file);

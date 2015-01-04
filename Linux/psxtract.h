@@ -46,20 +46,51 @@ char iso_magic[0xC] = {
 	0x30   // 0
 };
 
+// CUE structure
+typedef struct {
+	unsigned short    type;		    // Track Type = 41h for DATA, 01h for CDDA
+	unsigned char    number;		// Track Number (01h to 99h)
+	unsigned char    I0m;		    // INDEX 00 MM
+	unsigned char    I0s;		    // INDEX 00 SS
+	unsigned char    I0f;		    // INDEX 00 FF
+	unsigned char	 padding;       // NULL
+	unsigned char    I1m;		    // INDEX 01 MM
+	unsigned char    I1s;		    // INDEX 01 SS
+	unsigned char    I1f;		    // INDEX 01 FF
+} CUE_ENTRY;
+
+// CDDA table entry structure.
+typedef struct {
+	unsigned int     offset;
+	unsigned int     size;
+	unsigned char    padding[0x4];
+	unsigned char	 checksum[0x4];
+} CDDA_ENTRY;
+
 // ISO table entry structure.
 typedef struct {
 	unsigned int     offset;
 	unsigned short   size;
-	unsigned short   marker;
-	unsigned char	 checksum[0x10];
+	unsigned short   marker;			// 0x01 or 0x00
+	unsigned char	 checksum[0x10];	// first 0x10 bytes of sha1 sum of 0x10 disc sectors
 	unsigned char	 padding[0x8];
 } ISO_ENTRY;
 
 // STARTDAT header structure.
 typedef struct {
-	unsigned char    magic[8];
-	unsigned int	 unk1;
-	unsigned int	 unk2;
+	unsigned char    magic[8];		// STARTDAT
+	unsigned int	 unk1;			// 0x01
+	unsigned int	 unk2;			// 0x01
 	unsigned int	 header_size;
 	unsigned int	 data_size;
 } STARTDAT_HEADER;
+
+// SPECIAL header structure.
+typedef struct {
+	unsigned char    magic[8];		// SIMPLE__
+	unsigned int	 unk1;			// 0x64
+	unsigned int	 unk2;			// 0x01
+	unsigned int	 data_size;
+	unsigned int	 unk3;			// 0 or chcksm
+	unsigned int	 unk4;			// 0 or chcksm
+} SPECIAL_HEADER;
