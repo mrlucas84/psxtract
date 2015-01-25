@@ -128,7 +128,7 @@ int decompress(unsigned char *out, unsigned char *in, unsigned int size)
 {
 	int result;
 
-	unsigned char *tmp = new unsigned char[0xA70];
+	unsigned char tmp[0xA70];
 
 	int offset = 0;
 	int bit_flag = 0;
@@ -269,6 +269,6 @@ int decompress(unsigned char *out, unsigned char *in, unsigned int size)
 		}
 		result = (start - out);
 	}
-	delete[] tmp;
+
 	return result;
 }

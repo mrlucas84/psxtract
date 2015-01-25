@@ -40,7 +40,7 @@
 #include <stdlib.h>
 #include "libkirk/kirk_engine.h"
 #include "libkirk/amctrl.h"
-#include "libkirk/DES.h"
+#include "libkirk/des.h"
 #include "utils.h"
 
 static unsigned char des_key[0x8] = {0x39, 0xF7, 0xEF, 0xA1, 0x6C, 0xCE, 0x5F, 0x4C};

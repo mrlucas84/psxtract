@@ -45,7 +45,7 @@
 extern "C" {
 	#include "libkirk/kirk_engine.h"
 	#include "libkirk/amctrl.h"
-	#include "libkirk/DES.h"
+	#include "libkirk/des.h"
 }
 
 #include "utils.h"

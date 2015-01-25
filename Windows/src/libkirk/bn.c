@@ -1,12 +1,10 @@
 // Copyright 2007,2008,2010  Segher Boessenkool  <segher@kernel.crashing.org>
 // Licensed under the terms of the GNU GPL, version 2
 // http://www.gnu.org/licenses/old-licenses/gpl-2.0.txt
-// Updated and simplified for use by Kirk Engine - July 2011
 
 #include <string.h>
 #include <stdio.h>
 
-// Include definitions from kirk header
 #include "kirk_engine.h"
 
 void bn_print(char *name, u8 *a, u32 n)

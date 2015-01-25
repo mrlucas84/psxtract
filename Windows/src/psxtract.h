@@ -48,7 +48,7 @@ char iso_magic[0xC] = {
 
 // CUE structure
 typedef struct {
-	unsigned short    type;		    // Track Type = 41h for DATA, 01h for CDDA
+	unsigned short   type;		    // Track Type = 41h for DATA, 01h for CDDA
 	unsigned char    number;		// Track Number (01h to 99h)
 	unsigned char    I0m;		    // INDEX 00 MM
 	unsigned char    I0s;		    // INDEX 00 SS
@@ -72,7 +72,7 @@ typedef struct {
 	unsigned int     offset;
 	unsigned short   size;
 	unsigned short   marker;			// 0x01 or 0x00
-	unsigned char	 checksum[0x10];	// first 0x10 bytes of sha1 sum of 0x10 disc sectors
+	unsigned char	 checksum[0x10];	// First 0x10 bytes of sha1 sum of 0x10 disc sectors
 	unsigned char	 padding[0x8];
 } ISO_ENTRY;
 
@@ -85,7 +85,7 @@ typedef struct {
 	unsigned int	 data_size;
 } STARTDAT_HEADER;
 
-// SPECIAL header structure.
+// SIMPLE header structure.
 typedef struct {
 	unsigned char    magic[8];		// SIMPLE__
 	unsigned int	 unk1;			// 0x64
@@ -93,4 +93,4 @@ typedef struct {
 	unsigned int	 data_size;
 	unsigned int	 unk3;			// 0 or chcksm
 	unsigned int	 unk4;			// 0 or chcksm
-} SPECIAL_HEADER;
+} SIMPLE_HEADER;

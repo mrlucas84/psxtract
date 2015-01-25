@@ -21,7 +21,7 @@
     <ClCompile Include="psxtract.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="libkirk\AES.c">
+    <ClCompile Include="libkirk\aes.c">
       <Filter>Source Files\libkirk</Filter>
     </ClCompile>
     <ClCompile Include="libkirk\amctrl.c">
@@ -36,10 +36,10 @@
     <ClCompile Include="libkirk\kirk_engine.c">
       <Filter>Source Files\libkirk</Filter>
     </ClCompile>
-    <ClCompile Include="libkirk\SHA1.c">
+    <ClCompile Include="libkirk\sha1.c">
       <Filter>Source Files\libkirk</Filter>
     </ClCompile>
-    <ClCompile Include="libkirk\DES.c">
+    <ClCompile Include="libkirk\des.c">
       <Filter>Source Files\libkirk</Filter>
     </ClCompile>
     <ClCompile Include="crypto.cpp">
@@ -59,7 +59,7 @@
     <ClInclude Include="psxtract.h">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="libkirk\AES.h">
+    <ClInclude Include="libkirk\aes.h">
       <Filter>Source Files\libkirk</Filter>
     </ClInclude>
     <ClInclude Include="libkirk\amctrl.h">
@@ -68,10 +68,16 @@
     <ClInclude Include="libkirk\kirk_engine.h">
       <Filter>Source Files\libkirk</Filter>
     </ClInclude>
-    <ClInclude Include="libkirk\SHA1.h">
+    <ClInclude Include="libkirk\sha1.h">
       <Filter>Source Files\libkirk</Filter>
     </ClInclude>
-    <ClInclude Include="libkirk\DES.h">
+    <ClInclude Include="libkirk\des.h">
+      <Filter>Source Files\libkirk</Filter>
+    </ClInclude>
+    <ClInclude Include="libkirk\key_vault.h">
+      <Filter>Source Files\libkirk</Filter>
+    </ClInclude>
+    <ClInclude Include="libkirk\psp_headers.h">
       <Filter>Source Files\libkirk</Filter>
     </ClInclude>
     <ClInclude Include="crypto.h">
@@ -84,7 +90,7 @@
       <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="cdrom.h">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

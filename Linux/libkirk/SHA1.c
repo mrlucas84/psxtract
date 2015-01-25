@@ -30,12 +30,8 @@ effort (for example the reengineering of a great many Capstone chips).
 
 /* h files included here to make this just one file ... */
 
-/* global.h */
-
-
-
 /* sha.c */
-#include "SHA1.h"
+#include "sha1.h"
 
 #include <stdio.h>
 #include <string.h>
