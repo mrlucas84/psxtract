@@ -224,7 +224,12 @@ int decrypt_iso_header(FILE *psar, int header_offset, int header_size, unsigned 
 	int pgd_size = decrypt_pgd(iso_header, header_size, 2, pgd_key);
 
 	if (pgd_size > 0)
-		printf("ISO header successfully decrypted! Saving as ISO_HEADER.BIN...\n\n");
+	{
+	    if (disc_num > 0)
+		    printf("ISO header successfully decrypted! Saving as ISO_HEADER_%d.BIN...\n\n", disc_num);
+	    else
+		    printf("ISO header successfully decrypted! Saving as ISO_HEADER.BIN...\n\n");
+	}
 	else
 	{
 		printf("ERROR: ISO header decryption failed!\n\n");
@@ -686,7 +691,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
-		FILE* iso_table = fopen("ISO_HEADER.BIN", "rb");
+		FILE* iso_table = fopen("ISO_HEADER_1.BIN", "rb");
 		if (iso_table == NULL)
 		{
 			printf("ERROR: No decrypted ISO header found!\n");
@@ -721,7 +726,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
-		FILE* iso_table = fopen("ISO_HEADER.BIN", "rb");
+		FILE* iso_table = fopen("ISO_HEADER_2.BIN", "rb");
 		if (iso_table == NULL)
 		{
 			printf("ERROR: No decrypted ISO header found!\n");
@@ -756,7 +761,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
-		FILE* iso_table = fopen("ISO_HEADER.BIN", "rb");
+		FILE* iso_table = fopen("ISO_HEADER_3.BIN", "rb");
 		if (iso_table == NULL)
 		{
 			printf("ERROR: No decrypted ISO header found!\n");
@@ -791,7 +796,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
-		FILE* iso_table = fopen("ISO_HEADER.BIN", "rb");
+		FILE* iso_table = fopen("ISO_HEADER_4.BIN", "rb");
 		if (iso_table == NULL)
 		{
 			printf("ERROR: No decrypted ISO header found!\n");
@@ -826,7 +831,7 @@ int decrypt_multi_disc(FILE *psar, int psar_size, int startdat_offset, unsigned 
 			printf("Aborting...\n");
 
 		// Re-open in read mode (just to be safe).
-		FILE* iso_table = fopen("ISO_HEADER.BIN", "rb");
+		FILE* iso_table = fopen("ISO_HEADER_5.BIN", "rb");
 		if (iso_table == NULL)
 		{
 			printf("ERROR: No decrypted ISO header found!\n");
