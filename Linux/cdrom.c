@@ -332,6 +332,9 @@ struct fixImageStatus fixImage(char* inputfilepath, char* outputfilepath, enum E
                         sector[CDROMXA_FORM2_EDC_OFFSET + 2] = 0;
                         sector[CDROMXA_FORM2_EDC_OFFSET + 3] = 0;
                         break;
+                    case INFER:
+                    default:
+                        break;
                 }
 
                 // Update sector mode count.

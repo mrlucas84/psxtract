@@ -106,7 +106,7 @@ int decrypt_document(FILE* document)
 
 int decrypt_simple_data(FILE *psar, int psar_size, int simple_data_offset)
 {
-	if ((psar == NULL))
+	if (psar == NULL)
 	{
 		printf("ERROR: Can't open input file for SIMPLE data!\n");
 		return -1;
@@ -162,7 +162,7 @@ int decrypt_simple_data(FILE *psar, int psar_size, int simple_data_offset)
 
 int decrypt_unknown_data(FILE *psar, int unknown_data_offset, int startdat_offset)
 {
-	if ((psar == NULL))
+	if (psar == NULL)
 	{
 		printf("ERROR: Can't open input file for unknown data!\n");
 		return -1;
