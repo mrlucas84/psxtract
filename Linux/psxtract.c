@@ -106,7 +106,7 @@ int decrypt_document(FILE* document)
 
 int decrypt_simple_data(FILE *psar, int psar_size, int simple_data_offset)
 {
-	if ((psar == NULL))
+	if (psar == NULL)
 	{
 		printf("ERROR: Can't open input file for SIMPLE data!\n");
 		return -1;
@@ -162,7 +162,7 @@ int decrypt_simple_data(FILE *psar, int psar_size, int simple_data_offset)
 
 int decrypt_unknown_data(FILE *psar, int unknown_data_offset, int startdat_offset)
 {
-	if ((psar == NULL))
+	if (psar == NULL)
 	{
 		printf("ERROR: Can't open input file for unknown data!\n");
 		return -1;
@@ -932,7 +932,7 @@ int main(int argc, char **argv)
 	printf("Unpacking PBP %s...\n", input_filename);
 
 	// Setup a new directory to output the unpacked contents.
-	#ifdef __linux__
+	#if defined(__linux__) || defined(__APPLE__)
 		mkdir("PBP", 0777);
 	#else
 		mkdir("PBP");
@@ -956,7 +956,7 @@ int main(int argc, char **argv)
 	// Make a directory for CD-ROM images if required.
 	if (conv)
 	{
-		#ifdef __linux__
+		#if defined(__linux__) || defined(__APPLE__)
 			mkdir("CDROM", 0777);
 		#else
 			mkdir("CDROM");
@@ -964,7 +964,7 @@ int main(int argc, char **argv)
 	}
 
 	// Make a new directory for the ISO data.
-	#ifdef __linux__
+	#if defined(__linux__) || defined(__APPLE__)
 		mkdir("ISO", 0777);
 	#else
 		mkdir("ISO");

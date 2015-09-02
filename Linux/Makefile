@@ -24,3 +24,6 @@ $(TARGET2): $(OBJS2)
 	$(CC) $(CFLAGS) -o $@ $(OBJS2) -L ./libkirk -lkirk
 
 
+clean:
+	rm -rf *.o libkirk/*.o libkirk/$(TARGET1) $(TARGET2)
+
